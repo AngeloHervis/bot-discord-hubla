@@ -1,0 +1,46 @@
+name: Deploy Hubla Discord Bot
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore bot-discord-hubla/bot-discord-hubla.csproj
+
+    - name: Build and Publish
+      run: dotnet publish bot-discord-hubla/bot-discord-hubla.csproj -c Release -o ./publish
+
+    - name: Copy Files to VPS via SSH/SCP
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_IP }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        source: "publish/**"
+        target: "/var/www/hublabot"
+        strip_components: 1
+
+    - name: Restart Systemd Service on VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_IP }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        script: |
+          sudo systemctl restart hublabot
